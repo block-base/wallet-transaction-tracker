@@ -79,7 +79,7 @@ const App = () => {
             data.blockNumber,
             data.hash,
             0,
-            Number(data.value),
+            Number(data.value) / 10 ** 18,
             0,
             data.from,
             data.to,
@@ -105,9 +105,9 @@ const App = () => {
           const array = [
             data.blockNumber,
             data.hash,
-            Number(data.value) * a,
-            Number(data.value) * b,
-            Number(data.gasPrice) * Number(data.gasUsed) * a,
+            (Number(data.value) * a) / 10 ** 18,
+            (Number(data.value) * b) / 10 ** 18,
+            (Number(data.gasPrice) * Number(data.gasUsed) * a) / 10 ** 18,
             data.from,
             data.to,
           ]
@@ -117,7 +117,21 @@ const App = () => {
     formedData.sort(function (a, b) {
       return a[0] - b[0]
     })
-    formedData.unshift(["Block Numeber", "Hash", "Got", "Spent", "Gas","Address From", "Address To"])
+    let sumGot = 0
+    let sumSpent = 0;
+    let sumGas = 0;
+    formedData.forEach((e) => {
+      sumSpent += e[2]
+      sumGot += e[3]
+      sumGas += e[4]
+    })
+    await axios.get(
+      `https://${URL}/api?module=account&action=balance&address=${address}&tag=latest&apikey=${API_KEY}`,
+    ).then((res: any) => {
+      const balance = res.data.result
+      formedData.push(['', '', sumSpent, sumGot, sumGas,`Calcurated Balance : ${sumGot - sumSpent - sumGas}`,`Real Balance : ${balance}`])
+      formedData.unshift(["Block Numeber", "Hash", "Spent", "Got", "Gas","Address From", "Address To"])
+    })
 
     console.log(formedData)
 
