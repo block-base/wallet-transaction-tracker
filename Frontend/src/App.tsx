@@ -1,21 +1,23 @@
 import React, { useState } from 'react'
-import logo from './logo.svg'
 import axios from 'axios'
 import './App.css'
-import { Box, Button, Flex, Input, Text } from '@chakra-ui/react'
+import { Box, Button, Flex, Input, Select, Text } from '@chakra-ui/react'
 
 // 1. import `ChakraProvider` component
 import { ChakraProvider } from '@chakra-ui/react'
 
 const App = () => {
-  const ETHERSCAN_API_KEY =
-    process.env.ETHERSCAN_API_KEY || ""
   const [address, setAddress] = useState('')
+  const [network, setNetwork] = useState('')
   const [startBlock, setStartBlock] = useState(0)
   const [endBlock, setEndBlock] = useState(99999999)
   const handleChangeAddress = (e: any) => {
     const inputValue = e.target.value
     setAddress(inputValue)
+  }
+  const handleChangeNetwork = (e: any) => {
+    const inputValue = e.target.value
+    setNetwork(inputValue)
   }
   const handleChangeStartBlock = (e: any) => {
     const inputValue = e.target.value
@@ -26,17 +28,75 @@ const App = () => {
     setEndBlock(inputValue)
   }
 
+  const getAPIAndURL = (network: string) => {
+    switch (network) {
+      case 'ethereum':
+        return [
+          process.env.ETHERSCAN_API_KEY || 'Z1TKKCFKK9GTVJ3FZP3IA4K8SINX16NCJ3',
+          'api.etherscan.io',
+        ]
+      case 'polygon':
+        return [
+          process.env.POLYGONSCAN_API_KEY ||
+            'GZ6K1PAJV7YH2G2CZNG7RKYSURKXB3PFTA',
+          'api.polygonscan.com',
+        ]
+      case 'optimism':
+        return [
+          process.env.OPTIMISTIC_ETHERSCAN_API_KEY ||
+            '62F9T62NRZXPYIMWSPE4Y6PYE4MKMMGXUZ',
+          'api-optimistic.etherscan.io',
+        ]
+      case 'arbitrum':
+        return [
+          process.env.ARBISCAN_API_KEY || 'NV6614SZM1P3EB3YKUTRNWWV6V81Y17EA7',
+          'api.arbiscan.io',
+        ]
+      case 'rinkeby':
+        return [process.env.RINKEBY_ETHSCAN_API_KEY, 'api.rinkeby.etherscan.io']
+      default:
+        throw new Error('Method not found.')
+    }
+  }
+
   const main = async () => {
     const formedData: any[] = []
+    const [API_KEY, URL] = getAPIAndURL(network)
+    if (!API_KEY) {
+      console.log("Error : API KEY isn't set")
+      return
+    }
+
     await axios
       .get(
-        `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=${endBlock}page=1&offset=10&sort=asc&apikey=${ETHERSCAN_API_KEY}`,
+        `https://${URL}/api?module=account&action=txlistinternal&address=${address}&startblock=${startBlock}&endblock=${endBlock}&page=1&offset=10&sort=asc&apikey=${API_KEY}`,
       )
       .then((res: any) => {
         let array = res.data.result
         console.log(array, 'array')
         array.forEach((data: any) => {
-          let a = 1, b = 0
+          const array = [
+            data.blockNumber,
+            data.hash,
+            0,
+            Number(data.value),
+            0,
+            data.from,
+            data.to,
+          ]
+          formedData.push(array)
+        })
+      })
+    await axios
+      .get(
+        `https://${URL}/api?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=${endBlock}page=1&offset=10&sort=asc&apikey=${API_KEY}`,
+      )
+      .then((res: any) => {
+        let array = res.data.result
+        console.log(array, 'array')
+        array.forEach((data: any) => {
+          let a = 1,
+            b = 0
           if (data.from.toUpperCase() !== address.toUpperCase()) {
             console.log(address, data.from, 'hey')
             a = 0
@@ -53,20 +113,58 @@ const App = () => {
           ]
           formedData.push(array)
         })
-        console.log(formedData)
       })
+    formedData.sort(function (a, b) {
+      return a[0] - b[0]
+    })
+    formedData.unshift(["Block Numeber", "Hash", "Got", "Spent", "Gas","Address From", "Address To"])
+
+    console.log(formedData)
+
+    // TODO
+    // Export this array as CSV format
+    let csv = ''
+    for (let row of formedData) {
+      for (let col of row) {
+        csv += col + ','
+      }
+      csv += '\r\n'
+    }
+
+    let myBlob = new Blob([csv], { type: 'text/csv' })
+
+    var url = window.URL.createObjectURL(myBlob)
+    var anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'demo.csv'
+
+    anchor.click()
+    window.URL.revokeObjectURL(url)
+    anchor.remove()
   }
   return (
     <ChakraProvider>
       <div className="App">
         <header className="App-header">
-          <Box>
-            <Text>Address</Text>
+          <Box border={'2px'} p={'64px'}>
+            <Text>Wallet Address</Text>
             <Input
               size="sm"
               placeholder="Input your wallet address"
               onChange={handleChangeAddress}
             ></Input>
+            <Text mt="5">Network</Text>
+            <Select
+              size="sm"
+              placeholder="Select Network"
+              onChange={handleChangeNetwork}
+            >
+              <option value="ethereum">Ethereum</option>
+              <option value="polygon">Polygon</option>
+              <option value="optimism">Optimism</option>
+              <option value="arbitrum">Arbitrum</option>
+              <option value="rinkeby">Rinkeby</option>
+            </Select>
             {/* <Text mt="5">Source Money</Text>
             <InputGroup size="sm">
               <Input placeholder="Input initial balance " />
@@ -75,7 +173,7 @@ const App = () => {
             <Text mt="5">Duration</Text>
             <Flex>
               <Box mr="5">
-                <Text> From</Text>
+                <Text fontSize={'lg'}> From</Text>
                 <Input
                   size="sm"
                   placeholder="start block number"
@@ -83,7 +181,7 @@ const App = () => {
                 />
               </Box>
               <Box>
-                <Text>To</Text>
+                <Text fontSize={'lg'}>To</Text>
                 <Input
                   size="sm"
                   placeholder="end block number"
@@ -92,8 +190,8 @@ const App = () => {
               </Box>
             </Flex>
 
-            <Button mt="5" color="black" onClick={main}>
-              Get Transaction Data in CSV
+            <Button mt="10" color="black" onClick={main}>
+              Export Transaction Data in CSV Format
             </Button>
           </Box>
         </header>
